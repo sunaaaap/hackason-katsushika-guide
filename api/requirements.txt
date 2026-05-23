@@ -1,0 +1,4 @@
+azure-functions
+azure-search-documents==11.6.0b4
+openai>=1.30.0
+requests>=2.31.0

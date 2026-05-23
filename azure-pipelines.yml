@@ -1,0 +1,48 @@
+# ============================================================
+# 葛飾区 行政手続き案内エージェント — CI/CD パイプライン
+# ============================================================
+# トリガー: main ブランチへの push で自動デプロイ
+# デプロイ先: Azure Static Web Apps（フロントエンド + 管理 Functions）
+#
+# 【Pipeline Variables に設定が必要なシークレット】
+#   AZURE_STATIC_WEB_APPS_API_TOKEN  … SWA のデプロイトークン
+#   AZURE_SPEECH_KEY                 … Azure AI Speech サブスクリプションキー
+#   AZURE_SPEECH_REGION              … 例: japaneast
+# ============================================================
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none  # PR ではデプロイしない（レビュー後に main マージ時のみ）
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  # ① ソースコードをチェックアウト
+  - checkout: self
+    submodules: true
+    displayName: '📥 ソースコードをチェックアウト'
+
+  # ② index.html に Speech SDK 認証情報を注入
+  #    （プレースホルダーをパイプラインのシークレット変数で置換）
+  - script: |
+      sed -i "s|__AZURE_SPEECH_KEY__|$(AZURE_SPEECH_KEY)|g" index.html
+      sed -i "s|__AZURE_SPEECH_REGION__|$(AZURE_SPEECH_REGION)|g" index.html
+      echo "✅ Speech SDK 認証情報を注入しました"
+    displayName: '🔑 Speech SDK 認証情報を注入'
+
+  # ③ Azure Static Web Apps にデプロイ
+  #    app_location    : フロントエンド（index.html）があるフォルダ
+  #    api_location    : Azure Functions があるフォルダ
+  #    output_location : ビルド成果物フォルダ（ビルドなしの場合は空文字）
+  - task: AzureStaticWebApp@0
+    displayName: '🚀 Azure Static Web Apps にデプロイ'
+    inputs:
+      app_location: '/'
+      api_location: 'api'
+      output_location: ''
+    env:
+      azure_static_web_apps_api_token: $(AZURE_STATIC_WEB_APPS_API_TOKEN)

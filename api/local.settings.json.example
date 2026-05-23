@@ -1,0 +1,28 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "<AZURE_STORAGE_CONNECTION_STRING>",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+
+    "AZURE_OPENAI_ENDPOINT":               "https://<your-openai>.openai.azure.com/",
+    "AZURE_OPENAI_KEY":                    "<your-openai-key>",
+    "AZURE_OPENAI_DEPLOYMENT_GPT4O":       "gpt-4o",
+    "AZURE_OPENAI_DEPLOYMENT_EMBEDDING":   "text-embedding-3-small",
+    "AZURE_OPENAI_API_VERSION":            "2024-10-21",
+
+    "AZURE_SEARCH_ENDPOINT":               "https://<your-search>.search.windows.net",
+    "AZURE_SEARCH_KEY":                    "<your-search-key>",
+    "AZURE_SEARCH_INDEX_NAME":             "katsushika-procedures",
+
+    "AZURE_TRANSLATOR_ENDPOINT":           "https://api.cognitive.microsofttranslator.com",
+    "AZURE_TRANSLATOR_KEY":                "<your-translator-key>",
+    "AZURE_TRANSLATOR_REGION":             "global",
+
+    "AZURE_SPEECH_KEY":                    "<your-speech-key>",
+    "AZURE_SPEECH_REGION":                 "japaneast"
+  },
+  "Host": {
+    "CORS": "*",
+    "CORSCredentials": false
+  }
+}

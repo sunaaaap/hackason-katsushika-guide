@@ -1,0 +1,32 @@
+# ===== シークレット・環境変数（絶対にコミットしない） =====
+.env
+api/local.settings.json
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+.Python
+*.egg-info/
+dist/
+build/
+
+# ===== スクレイピング出力（AI Search にインデックス済み） =====
+output/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== LOCAL TEST =====
+local/

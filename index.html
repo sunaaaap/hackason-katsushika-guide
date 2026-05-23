@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>葛飾区 行政手続き案内</title>
+
+  <!-- Azure AI Speech SDK -->
+  <script src="https://aka.ms/csspeech/jsbrowserpackageraw"></script>
+  <!-- Markdown レンダラー -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+  <style>
+    /* ===== Reset & Base ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:   #0078d4;
+      --primary-d: #005a9e;
+      --bg:        #f3f4f6;
+      --surface:   #ffffff;
+      --border:    #e5e7eb;
+      --text:      #111827;
+      --text-s:    #6b7280;
+      --user-bg:   #0078d4;
+      --user-text: #ffffff;
+      --bot-bg:    #ffffff;
+      --bot-text:  #111827;
+      --radius:    12px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+                   "Yu Gothic UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== Header ===== */
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.15);
+      flex-shrink: 0;
+    }
+    header .logo { font-size: 24px; }
+    header h1 { font-size: 16px; font-weight: 700; line-height: 1.2; }
+    header p  { font-size: 11px; opacity: .85; margin-top: 2px; }
+
+    /* ===== Chat area ===== */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .bubble-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .bubble-row.user { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      background: var(--border);
+    }
+    .bubble-row.user .avatar { background: var(--primary); }
+
+    .bubble {
+      max-width: 72%;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      line-height: 1.7;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .bubble-row.bot  .bubble {
+      background: var(--bot-bg);
+      color: var(--bot-text);
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      border-bottom-left-radius: 4px;
+    }
+    .bubble-row.user .bubble {
+      background: var(--user-bg);
+      color: var(--user-text);
+      border-bottom-right-radius: 4px;
+    }
+
+    /* ===== Markdown レンダリング（botバブル内） ===== */
+    /* pre-wrap を無効化 — HTML 要素のマージンで余白を制御する */
+    .bubble.md { white-space: normal; }
+    /* 全要素のデフォルト margin をリセットし、上方向のみ再付与 */
+    .bubble.md > * { margin: 0; }
+    .bubble.md > *:first-child { margin-top: 0 !important; }
+    .bubble.md h1, .bubble.md h2, .bubble.md h3 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 10px;
+      color: var(--text);
+    }
+    .bubble.md h3 { font-size: 13px; }
+    .bubble.md p  { margin-top: 5px; }
+    .bubble.md ul, .bubble.md ol {
+      padding-left: 18px;
+      margin-top: 3px;
+    }
+    .bubble.md li          { margin-top: 1px; }
+    .bubble.md li > ul,
+    .bubble.md li > ol     { margin-top: 1px; }
+    .bubble.md strong      { font-weight: 700; }
+    .bubble.md em          { font-style: italic; }
+    .bubble.md a {
+      color: var(--primary);
+      text-decoration: underline;
+      word-break: break-all;
+    }
+    .bubble.md a:hover { color: var(--primary-d); }
+    .bubble.md hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 6px 0;
+    }
+    .bubble.md code {
+      background: #f0f0f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .bubble.md blockquote {
+      border-left: 3px solid var(--border);
+      padding-left: 10px;
+      color: var(--text-s);
+      margin-top: 4px;
+    }
+
+    .bubble-time {
+      font-size: 10px;
+      color: var(--text-s);
+      margin-top: 2px;
+      padding: 0 4px;
+    }
+    .bubble-row.user .bubble-time { text-align: right; }
+
+    /* Typing indicator */
+    .typing { display: flex; gap: 4px; padding: 12px 14px; }
+    .typing span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text-s);
+      animation: bounce .9s infinite;
+    }
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce {
+      0%,80%,100% { transform: translateY(0); }
+      40%          { transform: translateY(-6px); }
+    }
+
+    /* ===== Input area ===== */
+    #input-area {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    #user-input {
+      flex: 1;
+      resize: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.5;
+      max-height: 120px;
+      outline: none;
+      transition: border-color .2s;
+      font-family: inherit;
+    }
+    #user-input:focus { border-color: var(--primary); }
+
+    button {
+      width: 42px;
+      height: 42px;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: background .2s, transform .1s;
+      flex-shrink: 0;
+    }
+    button:active { transform: scale(.92); }
+
+    #mic-btn { background: var(--bg); color: var(--text); }
+    #mic-btn.listening {
+      background: #fee2e2;
+      color: #ef4444;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+      50%      { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+    }
+
+    #send-btn { background: var(--primary); color: #fff; }
+    #send-btn:hover    { background: var(--primary-d); }
+    #send-btn:disabled { background: var(--border); cursor: not-allowed; }
+
+    /* ===== Lang selector ===== */
+    #lang-select {
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-size: 12px;
+      background: var(--surface);
+      cursor: pointer;
+      height: 42px;
+    }
+
+    /* ===== Welcome card ===== */
+    .welcome {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      font-size: 13px;
+      color: var(--text-s);
+      line-height: 1.8;
+    }
+    .welcome strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ===== Header ===== -->
+<header>
+  <span class="logo">🏛️</span>
+  <div>
+    <h1>葛飾区 行政手続き案内</h1>
+    <p>Katsushika Ward Administrative Guidance · AI アシスタント</p>
+  </div>
+</header>
+
+<!-- ===== Chat ===== -->
+<div id="chat">
+  <div class="welcome">
+    <strong>👋 葛飾区の行政手続き案内AIへようこそ！</strong><br>
+    住民票の移動・国民健康保険・マイナンバー・戸籍・子育て・税金など、<br>
+    葛飾区のさまざまな行政手続きについてご案内します。<br>
+    <br>
+    日本人・外国人を問わず、どなたでもご利用いただけます。<br>
+    知りたい手続きについて、お気軽にメッセージをどうぞ。<br>
+    🎤 マイクボタンで音声入力も可能です。<br>
+    <br>
+    <strong>🌏 Available in English, Korean, and Chinese.</strong><br>
+    Select your language from the menu below.
+  </div>
+</div>
+
+<!-- ===== Input ===== -->
+<div id="input-area">
+  <select id="lang-select" title="言語を選択">
+    <option value="ja">🇯🇵 JA</option>
+    <option value="en">🇺🇸 EN</option>
+    <option value="ko">🇰🇷 KO</option>
+    <option value="zh-Hans">🇨🇳 ZH</option>
+  </select>
+  <textarea id="user-input" rows="1" placeholder="メッセージを入力してください…"></textarea>
+  <button id="mic-btn" title="音声入力">🎤</button>
+  <button id="send-btn" title="送信">➤</button>
+</div>
+
+<script>
+// ===================================================================
+// 設定
+// ===================================================================
+// ローカル環境（file:// または localhost）では Functions の直URLを使用
+// Azure Static Web Apps へのデプロイ後は相対パス /api/chat が自動でルーティングされる
+const IS_LOCAL = location.protocol === "file:" ||
+                 ["localhost", "127.0.0.1"].includes(location.hostname);
+const API_URL  = IS_LOCAL
+  ? "http://localhost:7071/api/chat"
+  : "/api/chat";
+const SPEECH_KEY    = "__AZURE_SPEECH_KEY__";    // デプロイ時に実際のキーに置換
+const SPEECH_REGION = "__AZURE_SPEECH_REGION__"; // 例: japaneast
+
+// ===================================================================
+// State
+// ===================================================================
+let conversationHistory = [];
+let isListening         = false;
+let recognizer          = null;
+
+// ===================================================================
+// DOM references
+// ===================================================================
+const chatEl     = document.getElementById("chat");
+const inputEl    = document.getElementById("user-input");
+const sendBtn    = document.getElementById("send-btn");
+const micBtn     = document.getElementById("mic-btn");
+const langSelect = document.getElementById("lang-select");
+
+// ===================================================================
+// marked.js の設定
+// ===================================================================
+marked.setOptions({
+  breaks: false,     // 単一改行は <br> にしない（GPT応答は二重改行で段落分け）
+  gfm:    true,      // GitHub Flavored Markdown 有効
+});
+
+// リンクを新しいタブで開くカスタムレンダラー
+const renderer = new marked.Renderer();
+renderer.link = (href, title, text) => {
+  const t = title ? ` title="${title}"` : "";
+  return `<a href="${href}"${t} target="_blank" rel="noopener noreferrer">${text}</a>`;
+};
+marked.use({ renderer });
+
+// ===================================================================
+// チャット UI ヘルパー
+// ===================================================================
+function appendMessage(role, text) {
+  const row = document.createElement("div");
+  row.className = `bubble-row ${role}`;
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = role === "user" ? "😊" : "🤖";
+
+  const col = document.createElement("div");
+
+  const bubble = document.createElement("div");
+
+  if (role === "bot") {
+    // bot メッセージはマークダウンとしてレンダリング
+    bubble.className = "bubble md";
+    bubble.innerHTML = marked.parse(text);
+  } else {
+    // ユーザーメッセージはプレーンテキスト（XSS対策）
+    bubble.className = "bubble";
+    bubble.textContent = text;
+  }
+
+  const time = document.createElement("div");
+  time.className = "bubble-time";
+  time.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  col.appendChild(bubble);
+  col.appendChild(time);
+  row.appendChild(avatar);
+  row.appendChild(col);
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+function showTyping() {
+  const row = document.createElement("div");
+  row.className = "bubble-row bot";
+  row.id = "typing-indicator";
+  row.innerHTML = `
+    <div class="avatar">🤖</div>
+    <div class="bubble" style="background:var(--bot-bg)">
+      <div class="typing"><span></span><span></span><span></span></div>
+    </div>`;
+  chatEl.appendChild(row);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById("typing-indicator");
+  if (el) el.remove();
+}
+
+// ===================================================================
+// API 呼び出し
+// ===================================================================
+async function sendMessage(text) {
+  if (!text.trim()) return;
+
+  const lang = langSelect.value;
+
+  // UI 更新
+  appendMessage("user", text);
+  conversationHistory.push({ role: "user", content: text });
+  inputEl.value = "";
+  inputEl.style.height = "auto";
+  sendBtn.disabled = true;
+  showTyping();
+
+  try {
+    const res = await fetch(API_URL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message:              text,
+        conversation_history: conversationHistory.slice(-16), // 直近16ターン（8往復）
+        detected_language:    lang,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    removeTyping();
+
+    // 回答を表示
+    appendMessage("bot", data.reply);
+    conversationHistory.push({ role: "assistant", content: data.reply });
+
+  } catch (err) {
+    removeTyping();
+    const errMsg = langSelect.value === "ja"
+      ? `⚠️ エラーが発生しました: ${err.message}\nもう一度お試しください。`
+      : `⚠️ Error: ${err.message}\nPlease try again.`;
+    appendMessage("bot", errMsg);
+    console.error(err);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+// ===================================================================
+// テキスト入力
+// ===================================================================
+inputEl.addEventListener("input", () => {
+  inputEl.style.height = "auto";
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+});
+
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage(inputEl.value);
+  }
+});
+
+sendBtn.addEventListener("click", () => sendMessage(inputEl.value));
+
+// ===================================================================
+// 音声入力 — Azure AI Speech SDK（連続認識・ユーザー操作で停止）
+// ===================================================================
+function getSpeechLocale(langCode) {
+  const map = { "en": "en-US", "ja": "ja-JP", "ko": "ko-KR", "zh-Hans": "zh-CN" };
+  return map[langCode] || "ja-JP";
+}
+
+let recognizedText = ""; // utterance 単位で確定したテキストの蓄積
+
+micBtn.addEventListener("click", () => {
+  if (isListening) {
+    // ── 停止ボタンとして機能: 認識を終了し、蓄積テキストを送信 ──
+    isListening = false;
+    micBtn.classList.remove("listening");
+    micBtn.title = "音声入力";
+    micBtn.textContent = "🎤";
+    if (recognizer) {
+      recognizer.stopContinuousRecognitionAsync(
+        () => { /* sessionStopped イベントで後処理 */ },
+        err => { console.error("停止エラー:", err); _cleanupRecognizer(); }
+      );
+    }
+    return;
+  }
+
+  if (!SPEECH_KEY || SPEECH_KEY === "__AZURE_SPEECH_KEY__") {
+    alert("Azure Speech キーが設定されていません。\nindex.html の SPEECH_KEY を設定してください。");
+    return;
+  }
+
+  startListening();
+});
+
+function startListening() {
+  const locale       = getSpeechLocale(langSelect.value);
+  const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
+  speechConfig.speechRecognitionLanguage = locale;
+
+  const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+  recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+
+  recognizedText = "";
+  isListening    = true;
+  micBtn.classList.add("listening");
+  micBtn.title       = "🔴 認識中… もう一度押すと送信";
+  micBtn.textContent = "⏹";
+  inputEl.value       = "";
+  inputEl.placeholder = "🎤 話してください… ボタンを押すと送信します";
+
+  // 中間結果（確定前のリアルタイム表示）
+  recognizer.recognizing = (_s, e) => {
+    inputEl.value = recognizedText
+      + (recognizedText ? " " : "")
+      + e.result.text;
+    _resizeInput();
+  };
+
+  // 確定結果（utterance 単位で蓄積）
+  recognizer.recognized = (_s, e) => {
+    if (
+      e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech &&
+      e.result.text.trim()
+    ) {
+      recognizedText += (recognizedText ? " " : "") + e.result.text.trim();
+      inputEl.value = recognizedText;
+      _resizeInput();
+    }
+  };
+
+  // セッション終了 → テキストがあれば送信
+  recognizer.sessionStopped = (_s, _e) => {
+    const textToSend = inputEl.value.trim();
+    _cleanupRecognizer();
+    if (textToSend) {
+      sendMessage(textToSend);
+    } else {
+      inputEl.placeholder = PLACEHOLDERS[langSelect.value] || "メッセージを入力してください…";
+    }
+  };
+
+  // エラー・キャンセル
+  recognizer.canceled = (_s, e) => {
+    console.warn("音声認識キャンセル:", e.reason, e.errorDetails);
+    _cleanupRecognizer();
+  };
+
+  recognizer.startContinuousRecognitionAsync(
+    () => { /* 開始成功 */ },
+    err => {
+      console.error("音声入力エラー:", err);
+      _cleanupRecognizer();
+    }
+  );
+}
+
+function _cleanupRecognizer() {
+  isListening = false;
+  micBtn.classList.remove("listening");
+  micBtn.title       = "音声入力";
+  micBtn.textContent = "🎤";
+  inputEl.placeholder = PLACEHOLDERS[langSelect.value] || "メッセージを入力してください…";
+  if (recognizer) {
+    recognizer.close();
+    recognizer = null;
+  }
+}
+
+function _resizeInput() {
+  inputEl.style.height = "auto";
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+}
+
+// ===================================================================
+// 言語切替
+// ===================================================================
+const PLACEHOLDERS = {
+  "ja":      "メッセージを入力してください…",
+  "en":      "Type your message…",
+  "ko":      "메시지를 입력하세요…",
+  "zh-Hans": "请输入您的消息…",
+};
+
+langSelect.addEventListener("change", () => {
+  inputEl.placeholder = PLACEHOLDERS[langSelect.value] || "メッセージを入力してください…";
+});
+</script>
+</body>
+</html>
