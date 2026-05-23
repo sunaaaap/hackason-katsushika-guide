@@ -299,11 +299,9 @@
 // Azure Static Web Apps へのデプロイ後は相対パス /api/chat が自動でルーティングされる
 const IS_LOCAL = location.protocol === "file:" ||
                  ["localhost", "127.0.0.1"].includes(location.hostname);
-const API_URL  = IS_LOCAL
-  ? "http://localhost:7071/api/chat"
-  : "/api/chat";
-const SPEECH_KEY    = "__AZURE_SPEECH_KEY__";    // デプロイ時に実際のキーに置換
-const SPEECH_REGION = "__AZURE_SPEECH_REGION__"; // 例: japaneast
+const BASE_URL        = IS_LOCAL ? "http://localhost:7071/api" : "/api";
+const API_URL         = `${BASE_URL}/chat`;
+const SPEECH_TOKEN_URL = `${BASE_URL}/speech-token`;
 
 // ===================================================================
 // State
@@ -311,6 +309,8 @@ const SPEECH_REGION = "__AZURE_SPEECH_REGION__"; // 例: japaneast
 let conversationHistory = [];
 let isListening         = false;
 let recognizer          = null;
+let speechAuthToken     = null;   // /api/speech-token から取得した短期トークン
+let speechRegion        = null;   // トークンと一緒に返ってくるリージョン
 
 // ===================================================================
 // DOM references
@@ -469,9 +469,26 @@ function getSpeechLocale(langCode) {
   return map[langCode] || "ja-JP";
 }
 
+// Speech トークンをAPIから取得（ページロード時 + 必要に応じて再取得）
+async function fetchSpeechToken() {
+  try {
+    const res  = await fetch(SPEECH_TOKEN_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    speechAuthToken = data.token;
+    speechRegion    = data.region;
+    console.log("✅ Speech トークン取得完了 (region:", speechRegion, ")");
+  } catch (e) {
+    console.warn("Speech トークン取得失敗:", e);
+    speechAuthToken = null;
+  }
+}
+// ページロード時にトークンを取得しておく
+fetchSpeechToken();
+
 let recognizedText = ""; // utterance 単位で確定したテキストの蓄積
 
-micBtn.addEventListener("click", () => {
+micBtn.addEventListener("click", async () => {
   if (isListening) {
     // ── 停止ボタンとして機能: 認識を終了し、蓄積テキストを送信 ──
     isListening = false;
@@ -487,8 +504,12 @@ micBtn.addEventListener("click", () => {
     return;
   }
 
-  if (!SPEECH_KEY || SPEECH_KEY === "__AZURE_SPEECH_KEY__") {
-    alert("Azure Speech キーが設定されていません。\nindex.html の SPEECH_KEY を設定してください。");
+  // トークンが未取得の場合は再取得を試みる
+  if (!speechAuthToken) {
+    await fetchSpeechToken();
+  }
+  if (!speechAuthToken) {
+    alert("音声入力の初期化に失敗しました。\nページを再読み込みしてください。");
     return;
   }
 
@@ -497,7 +518,8 @@ micBtn.addEventListener("click", () => {
 
 function startListening() {
   const locale       = getSpeechLocale(langSelect.value);
-  const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REGION);
+  // サブスクリプションキーではなく短期トークンを使用（セキュア）
+  const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(speechAuthToken, speechRegion);
   speechConfig.speechRecognitionLanguage = locale;
 
   const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();

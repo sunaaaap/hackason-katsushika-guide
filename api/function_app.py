@@ -49,11 +49,38 @@ TRANSLATOR_REGION    = os.environ["AZURE_TRANSLATOR_REGION"]
 
 GPT4O_DEPLOYMENT     = os.environ["AZURE_OPENAI_DEPLOYMENT_GPT4O"]
 EMBEDDING_DEPLOYMENT = os.environ["AZURE_OPENAI_DEPLOYMENT_EMBEDDING"]
+SPEECH_KEY           = os.environ.get("AZURE_SPEECH_KEY", "")
+SPEECH_REGION        = os.environ.get("AZURE_SPEECH_REGION", "japaneast")
 
 # ---------------------------------------------------------------
 # Azure Functions アプリ定義
 # ---------------------------------------------------------------
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+
+
+@app.route(route="speech-token", methods=["GET"])
+def speech_token(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Azure AI Speech の短期トークン（10分間有効）を発行して返す。
+    フロントエンドはキーを直接持たず、このエンドポイント経由でトークンを取得する。
+    """
+    if not SPEECH_KEY:
+        return _error_response("AZURE_SPEECH_KEY is not configured", 500)
+
+    token_url = f"https://{SPEECH_REGION}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+    headers   = {"Ocp-Apim-Subscription-Key": SPEECH_KEY}
+
+    try:
+        resp = requests.post(token_url, headers=headers, timeout=5)
+        resp.raise_for_status()
+        return func.HttpResponse(
+            json.dumps({"token": resp.text, "region": SPEECH_REGION}),
+            mimetype    = "application/json",
+            status_code = 200,
+        )
+    except Exception as e:
+        logging.exception("Speech トークン取得失敗")
+        return _error_response(f"Failed to issue speech token: {str(e)}", 500)
 
 
 @app.route(route="chat", methods=["POST"])
