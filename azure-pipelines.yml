@@ -27,12 +27,15 @@ steps:
     displayName: '📥 ソースコードをチェックアウト'
 
   # ② index.html に Speech SDK 認証情報を注入
-  #    （プレースホルダーをパイプラインのシークレット変数で置換）
+  #    シークレット変数は env: ブロックで明示マップしないと script に渡らない
   - script: |
-      sed -i "s|__AZURE_SPEECH_KEY__|$(AZURE_SPEECH_KEY)|g" index.html
-      sed -i "s|__AZURE_SPEECH_REGION__|$(AZURE_SPEECH_REGION)|g" index.html
+      sed -i "s|__AZURE_SPEECH_KEY__|${SPEECH_KEY}|g" index.html
+      sed -i "s|__AZURE_SPEECH_REGION__|${SPEECH_REGION}|g" index.html
       echo "✅ Speech SDK 認証情報を注入しました"
     displayName: '🔑 Speech SDK 認証情報を注入'
+    env:
+      SPEECH_KEY:    $(AZURE_SPEECH_KEY)
+      SPEECH_REGION: $(AZURE_SPEECH_REGION)
 
   # ③ Azure Static Web Apps にデプロイ
   #    app_location    : フロントエンド（index.html）があるフォルダ
